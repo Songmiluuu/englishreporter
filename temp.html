@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Công Cụ Trình Bày Báo Cáo Dịch Thuật</title>
+    <!-- Sử dụng Tailwind CSS để thiết kế nhanh và đẹp -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Noto Serif cho giống văn bản sách/báo cáo -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        
+        /* Phần hiển thị báo cáo sẽ dùng font có chân để trang trọng hơn */
+        #report-preview {
+            font-family: 'Noto Serif', serif;
+            line-height: 1.8;
+        }
+
+        /* Tùy chỉnh thanh cuộn */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        /* Menu Highlight Nổi */
+        #highlight-menu {
+            position: absolute;
+            z-index: 1000;
+            transform: translateX(-50%);
+            /* Mũi tên trỏ xuống */
+        }
+        #highlight-menu::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #1f2937 transparent transparent transparent; /* gray-800 */
+        }
+
+        /* CẤU HÌNH KHI IN (PRINT / SAVE TO PDF) */
+        @media print {
+            /* Ẩn tất cả các phần tử không phải là vùng báo cáo */
+            body * {
+                visibility: hidden;
+            }
+            .no-print {
+                display: none !important;
+            }
+            
+            /* Ẩn luôn menu highlight nếu đang hiện */
+            #highlight-menu {
+                display: none !important;
+            }
+
+            /* Chỉ hiện vùng báo cáo */
+            #report-container, #report-container * {
+                visibility: visible;
+            }
+            
+            /* Định vị vùng báo cáo về góc trên cùng */
+            #report-container {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 20px;
+                background: white;
+                box-shadow: none;
+                border: none;
+            }
+
+            /* Ngắt trang thông minh */
+            .page-break-inside-avoid {
+                page-break-inside: avoid;
+            }
+            
+            /* Đảm bảo màu sắc in ra đúng (nếu trình duyệt hỗ trợ) */
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen relative">
+
+    <!-- HIGHLIGHT MENU (Ẩn mặc định) -->
+    <div id="highlight-menu" class="hidden bg-gray-800 text-white p-1 rounded-lg shadow-xl flex gap-1 items-center transition-opacity duration-200">
+        <button onclick="highlightSelection('bg-yellow-200')" class="w-6 h-6 rounded-full bg-yellow-300 hover:scale-110 transition border border-gray-600" title="Highlight Vàng"></button>
+        <button onclick="highlightSelection('bg-green-200')" class="w-6 h-6 rounded-full bg-green-300 hover:scale-110 transition border border-gray-600" title="Highlight Xanh"></button>
+        <button onclick="highlightSelection('bg-pink-200')" class="w-6 h-6 rounded-full bg-pink-300 hover:scale-110 transition border border-gray-600" title="Highlight Hồng"></button>
+        <div class="w-px h-4 bg-gray-600 mx-1"></div>
+        <button onclick="removeHighlight()" class="text-xs px-2 py-1 hover:bg-gray-700 rounded text-gray-300" title="Xóa highlight tại vùng chọn">Xóa</button>
+    </div>
+
+    <!-- INPUT SECTION (Sẽ ẩn khi in) -->
+    <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-lg p-6 mb-8 no-print border border-gray-200">
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">Công Cụ Tạo Báo Cáo Dịch Thuật</h1>
+        <p class="text-gray-500 text-sm mb-6">Nhập văn bản gốc và bản dịch, công cụ sẽ tự động tách câu và trình bày.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- English Input -->
+            <div class="flex flex-col">
+                <label class="font-semibold text-blue-700 mb-2 flex justify-between">
+                    <span>Văn bản gốc (Tiếng Anh)</span>
+                    <span class="text-xs text-gray-400 font-normal self-end">Tự động tách câu thông minh</span>
+                </label>
+                <textarea id="input-en" class="w-full h-64 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition resize-none" placeholder="Paste English text here..."></textarea>
+            </div>
+
+            <!-- Vietnamese Input -->
+            <div class="flex flex-col">
+                <label class="font-semibold text-red-700 mb-2">Văn bản dịch (Tiếng Việt)</label>
+                <textarea id="input-vn" class="w-full h-64 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none transition resize-none" placeholder="Dán bản dịch tiếng Việt vào đây..."></textarea>
+            </div>
+        </div>
+
+        <!-- Vocabulary Input Section -->
+        <div class="mb-6 border-t pt-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="font-bold text-gray-700">Danh sách từ vựng (Highlight)</h2>
+                <button onclick="addVocabRow()" class="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-sm font-medium transition">+ Thêm từ</button>
+            </div>
+            <div id="vocab-inputs" class="space-y-2">
+                <!-- Rows will be added here by JS -->
+                <div class="flex gap-2 vocab-row">
+                    <input type="text" class="vocab-en w-1/3 p-2 border rounded" placeholder="Từ tiếng Anh (VD: Troops)">
+                    <input type="text" class="vocab-vn w-1/3 p-2 border rounded" placeholder="Nghĩa tiếng Việt">
+                    <input type="text" class="vocab-note w-1/3 p-2 border rounded" placeholder="Ghi chú (Tùy chọn)">
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4 border-t pt-6">
+            <button onclick="generateReport()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition shadow-md flex justify-center items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                Tạo Báo Cáo
+            </button>
+            <button onclick="window.print()" class="bg-gray-700 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition shadow-md flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                In / Lưu PDF
+            </button>
+        </div>
+        <p class="text-xs text-gray-400 mt-2 text-center">Mẹo: Sau khi tạo báo cáo, bôi đen văn bản bất kỳ để hiện menu tô màu.</p>
+    </div>
+
+    <!-- PREVIEW / OUTPUT SECTION (Phần sẽ in ra) -->
+    <div id="report-container" class="max-w-5xl mx-auto bg-white shadow-2xl rounded-none md:rounded-xl p-10 md:p-16 min-h-[1000px] hidden">
+        
+        <!-- Header Report -->
+        <div class="text-center border-b-2 border-black pb-6 mb-8">
+            <h2 class="text-3xl font-bold uppercase tracking-wide mb-2">Báo Cáo Thực Hành Dịch Thuật</h2>
+            <div class="flex justify-center gap-8 text-gray-600 italic">
+                <span id="display-date">Ngày: ...</span>
+                <span>Học viên: .......................................</span>
+            </div>
+        </div>
+
+        <!-- Translation Body -->
+        <div id="report-content">
+            <!-- JS will inject content here -->
+        </div>
+
+        <!-- Vocabulary Section (Footer) -->
+        <div id="report-vocab" class="mt-12 pt-6 border-t-2 border-gray-300 hidden">
+            <h3 class="text-xl font-bold mb-4 text-blue-800 uppercase border-l-4 border-blue-800 pl-3">Từ Vựng & Ghi Chú</h3>
+            <table class="w-full border-collapse border border-gray-300 text-sm">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="border border-gray-300 p-2 text-left w-1/3">Tiếng Anh</th>
+                        <th class="border border-gray-300 p-2 text-left w-1/3">Tiếng Việt</th>
+                        <th class="border border-gray-300 p-2 text-left w-1/3">Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody id="vocab-table-body">
+                    <!-- Vocab rows injected here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="mt-12 text-center text-xs text-gray-400 no-print">
+            Cuộn xuống cuối để xem hết hoặc nhấn "In / Lưu PDF" để xuất file.
+        </div>
+    </div>
+
+    <script>
+        // Set current date
+        document.getElementById('display-date').innerText = 'Ngày: ' + new Date().toLocaleDateString('vi-VN');
+
+        // Function to split text into sentences properly using Intl.Segmenter
+        function splitSentences(text, lang = 'en') {
+            if (!text) return [];
+            const cleanText = text.replace(/\s+/g, ' ').trim();
+            const segmenter = new Intl.Segmenter(lang, { granularity: 'sentence' });
+            const segments = Array.from(segmenter.segment(cleanText));
+            return segments.map(s => s.segment.trim());
+        }
+
+        // Add new row for vocabulary
+        function addVocabRow() {
+            const container = document.getElementById('vocab-inputs');
+            const div = document.createElement('div');
+            div.className = 'flex gap-2 vocab-row mt-2';
+            div.innerHTML = `
+                <input type="text" class="vocab-en w-1/3 p-2 border rounded" placeholder="Từ tiếng Anh">
+                <input type="text" class="vocab-vn w-1/3 p-2 border rounded" placeholder="Nghĩa tiếng Việt">
+                <input type="text" class="vocab-note w-1/3 p-2 border rounded" placeholder="Ghi chú">
+            `;
+            container.appendChild(div);
+        }
+
+        // Main function to generate the report
+        function generateReport() {
+            const enText = document.getElementById('input-en').value;
+            const vnText = document.getElementById('input-vn').value;
+            
+            if (!enText.trim()) {
+                alert("Vui lòng nhập văn bản tiếng Anh!");
+                return;
+            }
+
+            const enSentences = splitSentences(enText, 'en');
+            const vnSentences = splitSentences(vnText, 'vi');
+
+            const container = document.getElementById('report-content');
+            container.innerHTML = ''; 
+
+            document.getElementById('report-container').classList.remove('hidden');
+
+            const maxLen = Math.max(enSentences.length, vnSentences.length);
+
+            for (let i = 0; i < maxLen; i++) {
+                const enS = enSentences[i] || "";
+                const vnS = vnSentences[i] || "...";
+
+                const row = document.createElement('div');
+                row.className = 'mb-6 page-break-inside-avoid';
+                
+                row.innerHTML = `
+                    <div class="mb-2">
+                        <span class="font-bold text-blue-900 text-lg">${enS}</span>
+                    </div>
+                    <div class="pl-4 border-l-4 border-gray-300">
+                        <span class="text-gray-800 italic text-lg font-medium">${vnS}</span>
+                    </div>
+                    <div class="w-full h-px bg-gray-200 mt-4 mx-auto w-1/2"></div>
+                `;
+                container.appendChild(row);
+            }
+
+            // Render Vocabulary
+            const vocabRows = document.querySelectorAll('.vocab-row');
+            const vocabTableBody = document.getElementById('vocab-table-body');
+            vocabTableBody.innerHTML = '';
+            let hasVocab = false;
+
+            vocabRows.forEach(row => {
+                const en = row.querySelector('.vocab-en').value.trim();
+                const vn = row.querySelector('.vocab-vn').value.trim();
+                const note = row.querySelector('.vocab-note').value.trim();
+
+                if (en || vn) {
+                    hasVocab = true;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="border border-gray-300 p-2 font-bold text-blue-900">${en}</td>
+                        <td class="border border-gray-300 p-2">${vn}</td>
+                        <td class="border border-gray-300 p-2 italic text-gray-600">${note}</td>
+                    `;
+                    vocabTableBody.appendChild(tr);
+                }
+            });
+
+            const vocabSection = document.getElementById('report-vocab');
+            if (hasVocab) {
+                vocabSection.classList.remove('hidden');
+            } else {
+                vocabSection.classList.add('hidden');
+            }
+            
+            document.getElementById('report-container').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        /* --- LOGIC HIGHLIGHT --- */
+        const menu = document.getElementById('highlight-menu');
+        const reportContainer = document.getElementById('report-container');
+        let currentRange = null;
+
+        // Xử lý sự kiện khi bôi đen text
+        document.addEventListener('mouseup', function(e) {
+            // Nếu click vào chính menu thì không làm gì
+            if (menu.contains(e.target)) return;
+
+            const selection = window.getSelection();
+            
+            // Chỉ hiện menu nếu có text được chọn và text đó nằm trong vùng báo cáo
+            if (selection.toString().length > 0 && reportContainer.contains(selection.anchorNode)) {
+                currentRange = selection.getRangeAt(0);
+                const rect = currentRange.getBoundingClientRect();
+                
+                const scrollX = window.scrollX || window.pageXOffset;
+                const scrollY = window.scrollY || window.pageYOffset;
+                
+                menu.style.top = `${rect.top + scrollY - 45}px`; 
+                menu.style.left = `${rect.left + scrollX + (rect.width / 2)}px`;
+                
+                menu.classList.remove('hidden');
+            } else {
+                menu.classList.add('hidden');
+            }
+        });
+
+        // Hàm tô màu
+        function highlightSelection(colorClass) {
+            if (!currentRange) return;
+
+            try {
+                const span = document.createElement('span');
+                span.className = `${colorClass} px-1 rounded`; 
+                currentRange.surroundContents(span);
+                window.getSelection().removeAllRanges();
+                menu.classList.add('hidden');
+            } catch (e) {
+                alert('Không thể tô màu vùng này (Vùng chọn bị vắt ngang qua nhiều đoạn). Hãy chọn từng cụm từ trong một câu.');
+                menu.classList.add('hidden');
+            }
+        }
+
+        // Hàm xóa highlight (Cập nhật logic DOM mạnh mẽ hơn)
+        function removeHighlight() {
+             if (!currentRange) return;
+
+             const root = document.getElementById('report-container');
+             // Tìm node chung của vùng chọn
+             let node = currentRange.commonAncestorContainer;
+             if (node.nodeType === 3) node = node.parentNode; // Nếu là text node thì lấy cha
+
+             // TRƯỜNG HỢP 1: Con trỏ hoặc vùng chọn nằm GỌN trong một highlight (hoặc chính là highlight đó)
+             let wrapper = node;
+             let foundWrapper = false;
+             while (wrapper && wrapper !== root) {
+                 // Kiểm tra nếu thẻ là SPAN và có class bg- (dấu hiệu của highlight)
+                 if (wrapper.tagName === 'SPAN' && (wrapper.className.includes('bg-') || wrapper.className.includes('rounded'))) {
+                     const parent = wrapper.parentNode;
+                     // Chuyển nội dung ra ngoài (Unwrap)
+                     while (wrapper.firstChild) {
+                         parent.insertBefore(wrapper.firstChild, wrapper);
+                     }
+                     parent.removeChild(wrapper);
+                     foundWrapper = true;
+                     break;
+                 }
+                 wrapper = wrapper.parentNode;
+             }
+
+             // TRƯỜNG HỢP 2: Vùng chọn BAO TRÙM lên các highlight (ví dụ bôi đen cả câu chứa từ highlight)
+             if (!foundWrapper && node && node.querySelectorAll) {
+                 // Tìm tất cả các span highlight nằm trong vùng chung
+                 const spans = node.querySelectorAll('span[class*="bg-"]');
+                 spans.forEach(span => {
+                     // Kiểm tra xem span này có giao nhau với vùng chọn của người dùng không
+                     if (currentRange.intersectsNode(span)) {
+                          const parent = span.parentNode;
+                          while (span.firstChild) {
+                              parent.insertBefore(span.firstChild, span);
+                          }
+                          parent.removeChild(span);
+                     }
+                 });
+             }
+
+             // Dọn dẹp
+             window.getSelection().removeAllRanges();
+             menu.classList.add('hidden');
+        }
+
+    </script>
+</body>
+</html>
