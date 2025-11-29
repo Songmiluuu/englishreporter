@@ -213,8 +213,38 @@
             if (!text) return [];
             const cleanText = text.replace(/\s+/g, ' ').trim();
             const segmenter = new Intl.Segmenter(lang, { granularity: 'sentence' });
-            const segments = Array.from(segmenter.segment(cleanText));
-            return segments.map(s => s.segment.trim());
+            const segments = Array.from(segmenter.segment(cleanText)).map(s => s.segment.trim());
+            
+            // Xử lý đặc biệt cho tiếng Anh: Nối lại các câu bị tách sai do từ viết tắt (Mr., Mrs., ...)
+            if (lang === 'en') {
+                const abbrs = new Set([
+                    'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.', 'Gen.', 'Sen.', 'Rep.', 'Gov.', 
+                    'Capt.', 'Col.', 'Maj.', 'Lt.', 'Sgt.', 'Cpl.', 'Pvt.', 'Rev.', 'Fr.'
+                ]);
+                const merged = [];
+                
+                for (let i = 0; i < segments.length; i++) {
+                    let current = segments[i];
+                    
+                    // Kiểm tra xem đoạn hiện tại có kết thúc bằng từ viết tắt không và nối với đoạn sau
+                    while (i < segments.length - 1) {
+                         const words = current.split(' ');
+                         const lastWord = words[words.length - 1];
+                         
+                         // Nếu từ cuối cùng nằm trong danh sách viết tắt, nối với câu tiếp theo
+                         if (abbrs.has(lastWord)) {
+                             current += " " + segments[i+1];
+                             i++; // Bỏ qua đoạn tiếp theo vì đã nối rồi
+                         } else {
+                             break;
+                         }
+                    }
+                    merged.push(current);
+                }
+                return merged;
+            }
+            
+            return segments;
         }
 
         // Add new row for vocabulary (Updated to return the row for focus)
