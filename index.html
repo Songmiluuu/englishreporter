@@ -88,8 +88,12 @@
                 page-break-inside: avoid;
             }
             
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            /* QUAN TRỌNG: Ép trình duyệt in màu nền highlight */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+            }
         }
     </style>
 </head>
@@ -282,12 +286,15 @@
             const btnIcon = document.getElementById('translate-icon');
             
             // Lấy ngôn ngữ từ dropdown
-            const selectedLang = document.getElementById('lang-select').value;
+            let selectedLang = document.getElementById('lang-select').value;
 
             if (!sourceText) {
                 alert("Vui lòng nhập văn bản gốc trước khi dịch!");
                 return;
             }
+
+            // Nếu người dùng để Auto, thì mới chạy hàm detect (nếu có, hoặc mặc định en)
+            // Ở phiên bản này ta đã bỏ auto detect và dùng danh sách, nên luôn có selectedLang
             
             btn.disabled = true;
             btn.classList.add('opacity-75', 'cursor-not-allowed');
@@ -520,6 +527,17 @@
             container.querySelectorAll('thead tr').forEach(el => {
                 el.style.backgroundColor = '#f3f4f6';
             });
+
+            // Cập nhật: Cố định màu highlight cho Copy Docs và In ấn
+            container.querySelectorAll('.bg-yellow-200').forEach(el => el.style.setProperty('background-color', '#fef08a', 'important'));
+            container.querySelectorAll('.bg-green-200').forEach(el => el.style.setProperty('background-color', '#bbf7d0', 'important'));
+            container.querySelectorAll('.bg-pink-200').forEach(el => el.style.setProperty('background-color', '#fbcfe8', 'important'));
+
+            // Thêm thuộc tính đặc biệt để in màu nền
+            container.querySelectorAll('span[style*="background-color"]').forEach(el => {
+                el.style.setProperty('-webkit-print-color-adjust', 'exact', 'important');
+                el.style.setProperty('print-color-adjust', 'exact', 'important');
+            });
         }
 
         function exportToGoogleDocs() {
@@ -569,7 +587,11 @@
             try {
                 const span = document.createElement('span');
                 span.className = `${colorClass} px-1 rounded`; 
-                if (hexColor) span.style.backgroundColor = hexColor;
+                // Quan trọng: Sử dụng setProperty với 'important' để đảm bảo màu nền
+                if (hexColor) {
+                    span.style.setProperty('background-color', hexColor, 'important');
+                    span.style.setProperty('-webkit-print-color-adjust', 'exact', 'important');
+                }
                 currentRange.surroundContents(span);
                 window.getSelection().removeAllRanges();
                 menu.classList.add('hidden');
