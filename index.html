@@ -113,7 +113,8 @@
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-gray-100 pb-4">
             <div>
                 <h1 class="text-2xl font-bold text-gray-800 mb-1">Hệ Thống Hỗ Trợ Thực Hành Dịch Thuật</h1>
-                <p class="text-gray-500 text-sm">Nhập văn bản và bản dịch, công cụ sẽ tự động tách câu và trình bày.</p>
+                <!-- Đã cập nhật dòng mô tả rõ nghĩa hơn -->
+                <p class="text-gray-500 text-sm">Nhập văn bản gốc và bản dịch, công cụ sẽ tự động tách và trình bày <b>song ngữ xen kẽ từng câu</b> giúp dễ dàng đối chiếu.</p>
             </div>
 
             <!-- LANGUAGE SELECTOR -->
@@ -292,9 +293,6 @@
                 alert("Vui lòng nhập văn bản gốc trước khi dịch!");
                 return;
             }
-
-            // Nếu người dùng để Auto, thì mới chạy hàm detect (nếu có, hoặc mặc định en)
-            // Ở phiên bản này ta đã bỏ auto detect và dùng danh sách, nên luôn có selectedLang
             
             btn.disabled = true;
             btn.classList.add('opacity-75', 'cursor-not-allowed');
@@ -335,26 +333,39 @@
             }
         }
 
-        /* --- HÀM TÁCH CÂU ĐA NGÔN NGỮ --- */
+        /* --- HÀM TÁCH CÂU ĐA NGÔN NGỮ (FIX LỖI CJK) --- */
         function splitSentences(text, lang = 'en') {
             if (!text) return [];
             
-            const isCJK = ['zh', 'ja', 'ko'].includes(lang);
-            const cleanText = isCJK ? text.trim() : text.replace(/\s+/g, ' ').trim();
+            // Nhật/Trung (zh, ja): KHÔNG dùng dấu cách để nối từ, nên ta xóa hẳn dấu xuống dòng (\n, \r) 
+            // để nối các đoạn bị ngắt lại với nhau.
+            const isNoSpaceLang = ['zh', 'ja'].includes(lang);
             
-            // Fallback về 'en' nếu lang là auto hoặc không được hỗ trợ bởi Intl
+            let cleanText = '';
+            if (isNoSpaceLang) {
+                // Xóa mọi dấu xuống dòng để nối câu bị gãy
+                cleanText = text.replace(/[\r\n]+/g, '').trim();
+            } else {
+                // Các ngôn ngữ khác (Anh, Việt, Hàn...): Thay thế mọi loại khoảng trắng thành 1 dấu cách
+                cleanText = text.replace(/\s+/g, ' ').trim();
+            }
+            
+            // Fallback về 'en' nếu lang không được hỗ trợ bởi Intl
             let segmenterLang = lang;
             try {
-                // Kiểm tra xem trình duyệt có hỗ trợ locale này không
                 new Intl.Segmenter(lang);
             } catch (e) {
                 segmenterLang = 'en';
             }
 
             const segmenter = new Intl.Segmenter(segmenterLang, { granularity: 'sentence' });
-            let segments = Array.from(segmenter.segment(cleanText)).map(s => s.segment.trim());
+            // Lọc bỏ các segment rỗng do lỗi tách
+            let segments = Array.from(segmenter.segment(cleanText))
+                                .map(s => s.segment.trim())
+                                .filter(s => s.length > 0);
             
-            if (!isCJK) {
+            // Logic gộp câu cho ngôn ngữ Latin (xử lý từ viết tắt)
+            if (!isNoSpaceLang) {
                 const abbrs = new Set([
                     'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.', 'Gen.', 'Sen.', 'Rep.', 'Gov.', 
                     'Capt.', 'Col.', 'Maj.', 'Lt.', 'Sgt.', 'Cpl.', 'Pvt.', 'Rev.', 'Fr.', 'St.',
@@ -378,6 +389,7 @@
                 segments = merged;
             }
 
+            // Gộp câu trong ngoặc đơn (chung cho mọi ngôn ngữ)
             const finalSegments = [];
             for (let i = 0; i < segments.length; i++) {
                 let current = segments[i];
